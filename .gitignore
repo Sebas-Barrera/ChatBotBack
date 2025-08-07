@@ -1,0 +1,263 @@
+# ============================================
+# CHATBOT CHINGÓN - GITIGNORE SEGURO
+# ============================================
+
+# ============================================
+# ARCHIVOS DE CONFIGURACIÓN SENSIBLES
+# ============================================
+.env
+.env.local
+.env.development
+.env.production
+.env.test
+*.env
+
+# Archivos de configuración con credenciales
+config/local.js
+config/production.js
+secrets.json
+
+# ============================================
+# NODE.JS
+# ============================================
+# Dependencias
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+
+# nyc test coverage
+.nyc_output
+
+# ============================================
+# LOGS Y TEMPORALES
+# ============================================
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Logs
+logs/
+*.log
+
+# Database
+*.db
+*.sqlite
+dump.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+tmp/
+temp/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Archivos temporales
+tmp/
+temp/
+.tmp/
+
+# ============================================
+# UPLOADS Y ARCHIVOS DE USUARIO
+# ============================================
+uploads/
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.pdf
+*.doc
+*.docx
+
+# Excepto archivos de ejemplo
+!uploads/.gitkeep
+!docs/images/
+!public/images/
+
+# ============================================
+# BASES DE DATOS LOCALES
+# ============================================
+*.sqlite
+*.sqlite3
+*.db
+database/local.db
+dump.sql
+backup.sql
+
+# ============================================
+# SISTEMA OPERATIVO
+# ============================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+
+# ============================================
+# EDITORES E IDEs
+# ============================================
+# VSCode
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+*~
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+
+# ============================================
+# HERRAMIENTAS DE DESARROLLO
+# ============================================
+# Jest coverage
+coverage/
+
+# ESLint cache
+.eslintcache
+
+# Prettier cache
+.prettier-cache
+
+# Parcel cache
+.cache/
+.parcel-cache/
+
+# Webpack
+dist/
+build/
+
+# ============================================
+# DEPLOYMENT Y CLOUD
+# ============================================
+# Vercel
+.vercel
+
+# Netlify
+.netlify/
+
+# PM2
+.pm2/
+
+# Docker
+.dockerignore
+Dockerfile.local
+
+# ============================================
+# CERTIFICADOS Y LLAVES
+# ============================================
+*.pem
+*.key
+*.crt
+*.cer
+*.p12
+*.pfx
+
+# SSH keys
+id_rsa
+id_rsa.pub
+*.ppk
+
+# ============================================
+# ARCHIVOS DE RESPALDO
+# ============================================
+*.bak
+*.backup
+*.old
+*.orig
+*.save
+
+# ============================================
+# ARCHIVOS DE TESTING
+# ============================================
+# Test results
+test-results/
+junit.xml
+coverage.xml
+
+# Mocks
+__mocks__/
+
+# ============================================
+# ARCHIVOS ESPECÍFICOS DEL PROYECTO
+# ============================================
+# Archivos de configuración local de WhatsApp
+whatsapp-session/
+.wwebjs_auth/
+
+# Archivos de caché de Claude AI
+claude-cache/
+
+# Archivos de configuración temporal
+temp-config.json
+local-settings.json
+
+# ============================================
+# IMPORTANTE: NUNCA COMMITS ESTOS ARCHIVOS
+# ============================================
+# - Cualquier archivo con credenciales
+# - API keys
+# - Contraseñas
+# - Tokens de acceso
+# - Connection strings de base de datos
+# - Certificados SSL privados
