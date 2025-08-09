@@ -1,23 +1,25 @@
-const Order = require('../models/Order');
-const Customer = require('../models/Customer');
-const Conversation = require('../models/Conversation');
-const WhatsAppService = require('./whatsappService');
-const ValidationService = require('./validationService');
-const logger = require('../utils/logger');
-const { 
-  ORDER_STATUS, 
+const Order = require("../models/Order");
+const Customer = require("../models/Customer");
+const Conversation = require("../models/Conversation");
+const WhatsAppService = require("./whatsappService");
+const ValidationService = require("./validationService");
+const logger = require("../utils/logger");
+const {
+  ORDER_STATUS,
   CONVERSATION_STATUS,
   DEFAULT_MESSAGES,
-  BUSINESS_CONFIG 
-} = require('../utils/constants');
-const { ValidationError, DatabaseError } = require('../middleware/errorHandler');
+  BUSINESS_CONFIG,
+} = require("../utils/constants");
+const {
+  ValidationError,
+  DatabaseError,
+} = require("../middleware/errorHandler");
 
 // ============================================
 // SERVICIO DE PEDIDOS
 // ============================================
 
 class OrderService {
-
   /**
    * Crea un pedido desde una conversación
    * @param {Object} conversation - Conversación con el pedido
@@ -27,7 +29,8 @@ class OrderService {
   static async createFromConversation(conversation, restaurant) {
     try {
       // Validar conversación
-      const validationResult = ValidationService.validateOrderFromConversation(conversation);
+      const validationResult =
+        ValidationService.validateOrderFromConversation(conversation);
       if (!validationResult.isValid) {
         throw new ValidationError(validationResult.error);
       }
@@ -35,9 +38,9 @@ class OrderService {
       // Parsear datos del pedido
       let orderData = {};
       try {
-        orderData = JSON.parse(conversation.order_data || '{}');
+        orderData = JSON.parse(conversation.order_data || "{}");
       } catch (e) {
-        throw new ValidationError('Error parseando datos del pedido');
+        throw new ValidationError("Error parseando datos del pedido");
       }
 
       // Obtener o crear cliente
@@ -64,9 +67,11 @@ class OrderService {
         items: orderData.items || [],
         subtotal: orderData.subtotal || 0,
         delivery_fee: this.calculateDeliveryFee(restaurant, orderData),
-        total: (orderData.subtotal || 0) + this.calculateDeliveryFee(restaurant, orderData),
+        total:
+          (orderData.subtotal || 0) +
+          this.calculateDeliveryFee(restaurant, orderData),
         estimated_delivery_time: estimatedTime,
-        special_instructions: orderData.special_instructions
+        special_instructions: orderData.special_instructions,
       };
 
       // Crear pedido
@@ -84,18 +89,17 @@ class OrderService {
       // Notificar al restaurante si está configurado
       await this.notifyRestaurant(order, restaurant);
 
-      logger.info('Pedido creado exitosamente', {
+      logger.info("Pedido creado exitosamente", {
         orderId: order.id,
         restaurantId: restaurant.id,
-        customerPhone: customer.phone.substring(0, 8) + '****',
+        customerPhone: customer.phone.substring(0, 8) + "****",
         total: order.total,
-        itemsCount: orderPayload.items.length
+        itemsCount: orderPayload.items.length,
       });
 
       return order;
-
     } catch (error) {
-      logger.error('Error creando pedido desde conversación:', error);
+      logger.error("Error creando pedido desde conversación:", error);
       throw error;
     }
   }
@@ -109,17 +113,17 @@ class OrderService {
    */
   static async updateOrderStatus(orderId, newStatus, options = {}) {
     try {
-      const { 
+      const {
         internal_notes = null,
         estimated_delivery_time = null,
         notify_customer = true,
-        restaurant = null
+        restaurant = null,
       } = options;
 
       // Actualizar estado en base de datos
       const updatedOrder = await Order.updateStatus(orderId, newStatus, {
         internal_notes,
-        estimated_delivery_time
+        estimated_delivery_time,
       });
 
       // Obtener datos completos del pedido
@@ -131,17 +135,16 @@ class OrderService {
       }
 
       // Log del cambio de estado
-      logger.info('Estado de pedido actualizado', {
+      logger.info("Estado de pedido actualizado", {
         orderId,
         newStatus,
         previousStatus: updatedOrder.status,
-        notifyCustomer: notify_customer
+        notifyCustomer: notify_customer,
       });
 
       return fullOrder;
-
     } catch (error) {
-      logger.error('Error actualizando estado de pedido:', error);
+      logger.error("Error actualizando estado de pedido:", error);
       throw error;
     }
   }
@@ -155,7 +158,7 @@ class OrderService {
    */
   static async cancelOrder(orderId, reason, options = {}) {
     try {
-      const { notify_customer = true, cancelled_by = 'restaurant' } = options;
+      const { notify_customer = true, cancelled_by = "restaurant" } = options;
 
       // Cancelar pedido
       const cancelledOrder = await Order.cancel(orderId, reason);
@@ -168,16 +171,15 @@ class OrderService {
         await this.notifyCustomerCancellation(fullOrder, reason, cancelled_by);
       }
 
-      logger.info('Pedido cancelado', {
+      logger.info("Pedido cancelado", {
         orderId,
         reason,
-        cancelledBy: cancelled_by
+        cancelledBy: cancelled_by,
       });
 
       return fullOrder;
-
     } catch (error) {
-      logger.error('Error cancelando pedido:', error);
+      logger.error("Error cancelando pedido:", error);
       throw error;
     }
   }
@@ -194,20 +196,21 @@ class OrderService {
 
       // Verificar si hay costo extra por zona
       const neighborhood = orderData.delivery_address?.neighborhood;
-      
+
       // Aquí se podría consultar la tabla delivery_zones
       // Por ahora usamos el fee base del restaurante
 
       // Envío gratis si supera el mínimo (si está configurado)
-      if (restaurant.free_delivery_minimum && 
-          orderData.subtotal >= restaurant.free_delivery_minimum) {
+      if (
+        restaurant.free_delivery_minimum &&
+        orderData.subtotal >= restaurant.free_delivery_minimum
+      ) {
         deliveryFee = 0;
       }
 
       return deliveryFee;
-
     } catch (error) {
-      logger.error('Error calculando costo de envío:', error);
+      logger.error("Error calculando costo de envío:", error);
       return restaurant.delivery_fee || 0;
     }
   }
@@ -232,8 +235,8 @@ class OrderService {
           street: order.delivery_street,
           number: order.delivery_number,
           neighborhood: order.delivery_neighborhood,
-          references: order.delivery_references
-        }
+          references: order.delivery_references,
+        },
       };
 
       // Obtener items del pedido
@@ -243,18 +246,23 @@ class OrderService {
       }
 
       // Generar mensaje de confirmación
-      const confirmationMessage = WhatsAppService.generateOrderConfirmation(orderData, restaurant);
+      const confirmationMessage = WhatsAppService.generateOrderConfirmation(
+        orderData,
+        restaurant
+      );
 
       // Enviar mensaje
-      await WhatsAppService.sendMessage(order.customer_phone, confirmationMessage);
+      await WhatsAppService.sendMessage(
+        order.customer_phone,
+        confirmationMessage
+      );
 
-      logger.info('Confirmación de pedido enviada', {
+      logger.info("Confirmación de pedido enviada", {
         orderId: order.id,
-        customerPhone: order.customer_phone.substring(0, 8) + '****'
+        customerPhone: order.customer_phone.substring(0, 8) + "****",
       });
-
     } catch (error) {
-      logger.error('Error enviando confirmación de pedido:', error);
+      logger.error("Error enviando confirmación de pedido:", error);
       // No lanzar error para no afectar la creación del pedido
     }
   }
@@ -272,23 +280,22 @@ class OrderService {
         [ORDER_STATUS.PREPARING]: `👨‍🍳 Tu pedido está siendo preparado con mucho cariño. ¡Ya casi está listo!`,
         [ORDER_STATUS.READY]: `🛵 ¡Tu pedido está listo! El repartidor saldrá en breve.`,
         [ORDER_STATUS.OUT_FOR_DELIVERY]: `🚗 ¡Tu pedido está en camino! El repartidor llegará pronto.`,
-        [ORDER_STATUS.DELIVERED]: `✅ ¡Pedido entregado! Gracias por tu preferencia. ¡Esperamos verte pronto! 🙏`
+        [ORDER_STATUS.DELIVERED]: `✅ ¡Pedido entregado! Gracias por tu preferencia. ¡Esperamos verte pronto! 🙏`,
       };
 
       const message = statusMessages[newStatus];
-      
+
       if (message) {
         await WhatsAppService.sendMessage(order.customer_phone, message);
-        
-        logger.info('Notificación de estado enviada', {
+
+        logger.info("Notificación de estado enviada", {
           orderId: order.id,
           newStatus,
-          customerPhone: order.customer_phone.substring(0, 8) + '****'
+          customerPhone: order.customer_phone.substring(0, 8) + "****",
         });
       }
-
     } catch (error) {
-      logger.error('Error notificando cambio de estado:', error);
+      logger.error("Error notificando cambio de estado:", error);
       // No lanzar error para no afectar la actualización
     }
   }
@@ -303,12 +310,12 @@ class OrderService {
   static async notifyCustomerCancellation(order, reason, cancelledBy) {
     try {
       let message = `❌ Lamentamos informarte que tu pedido ha sido cancelado.`;
-      
+
       if (reason) {
         message += `\n\nMotivo: ${reason}`;
       }
 
-      if (cancelledBy === 'restaurant') {
+      if (cancelledBy === "restaurant") {
         message += `\n\nNos disculpamos por las molestias. Te invitamos a realizar un nuevo pedido cuando gustes. 🙏`;
       }
 
@@ -316,15 +323,14 @@ class OrderService {
 
       await WhatsAppService.sendMessage(order.customer_phone, message);
 
-      logger.info('Notificación de cancelación enviada', {
+      logger.info("Notificación de cancelación enviada", {
         orderId: order.id,
         reason,
         cancelledBy,
-        customerPhone: order.customer_phone.substring(0, 8) + '****'
+        customerPhone: order.customer_phone.substring(0, 8) + "****",
       });
-
     } catch (error) {
-      logger.error('Error notificando cancelación:', error);
+      logger.error("Error notificando cancelación:", error);
       // No lanzar error para no afectar la cancelación
     }
   }
@@ -340,26 +346,31 @@ class OrderService {
       // Notificación por WhatsApp si está configurado
       if (restaurant.notification_phone) {
         const message = this.generateRestaurantNotification(order);
-        await WhatsAppService.sendMessage(restaurant.notification_phone, message);
+        await WhatsAppService.sendMessage(
+          restaurant.notification_phone,
+          message
+        );
       }
 
       // Notificación por email (se implementaría en el futuro)
       if (restaurant.notification_email) {
         // TODO: Implementar notificación por email
-        logger.info('Email notification would be sent to:', restaurant.notification_email);
+        logger.info(
+          "Email notification would be sent to:",
+          restaurant.notification_email
+        );
       }
 
-      logger.info('Restaurante notificado sobre nuevo pedido', {
+      logger.info("Restaurante notificado sobre nuevo pedido", {
         orderId: order.id,
         restaurantId: restaurant.id,
         notificationMethods: {
           whatsapp: !!restaurant.notification_phone,
-          email: !!restaurant.notification_email
-        }
+          email: !!restaurant.notification_email,
+        },
       });
-
     } catch (error) {
-      logger.error('Error notificando al restaurante:', error);
+      logger.error("Error notificando al restaurante:", error);
       // No lanzar error para no afectar la creación del pedido
     }
   }
@@ -374,14 +385,14 @@ class OrderService {
       let message = `🔔 *NUEVO PEDIDO*\n\n`;
       message += `*ID:* ${order.id.substring(0, 8)}\n`;
       message += `*Cliente:* ${order.customer_phone}\n`;
-      
+
       if (order.customer_name) {
         message += `*Nombre:* ${order.customer_name}\n`;
       }
 
       message += `*Total:* $${order.total}\n`;
       message += `*Dirección:* ${order.delivery_street} ${order.delivery_number}, ${order.delivery_neighborhood}\n`;
-      
+
       if (order.delivery_references) {
         message += `*Referencias:* ${order.delivery_references}\n`;
       }
@@ -391,15 +402,15 @@ class OrderService {
       }
 
       message += `\n*Items:*\n`;
-      
+
       // Si tenemos los items detallados
       if (order.items && order.items.length > 0) {
         order.items.forEach((item, index) => {
           message += `${index + 1}. ${item.item_name} (${item.quantity}x)\n`;
-          
+
           if (item.customizations && item.customizations.length > 0) {
             const customizations = JSON.parse(item.customizations);
-            customizations.forEach(custom => {
+            customizations.forEach((custom) => {
               message += `   • ${custom.name}\n`;
             });
           }
@@ -407,12 +418,11 @@ class OrderService {
       }
 
       message += `\n⏰ Tiempo estimado: ${order.estimated_delivery_time || 30} min`;
-      message += `\n📅 ${new Date(order.created_at).toLocaleString('es-MX')}`;
+      message += `\n📅 ${new Date(order.created_at).toLocaleString("es-MX")}`;
 
       return message;
-
     } catch (error) {
-      logger.error('Error generando notificación para restaurante:', error);
+      logger.error("Error generando notificación para restaurante:", error);
       return `🔔 Nuevo pedido recibido. ID: ${order.id.substring(0, 8)}, Total: $${order.total}`;
     }
   }
@@ -425,24 +435,23 @@ class OrderService {
   static async getActiveOrders(restaurantId) {
     try {
       const activeOrders = await Order.getActiveOrders(restaurantId);
-      
+
       // Agregar tiempo transcurrido y alertas
-      const ordersWithAlerts = activeOrders.map(order => {
+      const ordersWithAlerts = activeOrders.map((order) => {
         const minutesSinceOrder = parseFloat(order.minutes_since_order || 0);
         const estimatedTime = order.estimated_delivery_time || 30;
-        
+
         return {
           ...order,
           is_delayed: minutesSinceOrder > estimatedTime + 10, // 10 minutos de gracia
-          is_urgent: minutesSinceOrder > estimatedTime - 5,   // Falta poco para el tiempo estimado
-          minutes_since_order: Math.round(minutesSinceOrder)
+          is_urgent: minutesSinceOrder > estimatedTime - 5, // Falta poco para el tiempo estimado
+          minutes_since_order: Math.round(minutesSinceOrder),
         };
       });
 
       return ordersWithAlerts;
-
     } catch (error) {
-      logger.error('Error obteniendo pedidos activos:', error);
+      logger.error("Error obteniendo pedidos activos:", error);
       throw error;
     }
   }
@@ -457,14 +466,14 @@ class OrderService {
     try {
       // Estadísticas básicas
       const basicStats = await Order.getStats(restaurantId, dateRange);
-      
+
       // Items más vendidos
       const topItems = await Order.getTopItems(restaurantId, dateRange, 10);
-      
+
       // Resumen por períodos
-      const dailySummary = await Order.getSalesSummary(restaurantId, 'today');
-      const weeklySummary = await Order.getSalesSummary(restaurantId, 'week');
-      const monthlySummary = await Order.getSalesSummary(restaurantId, 'month');
+      const dailySummary = await Order.getSalesSummary(restaurantId, "today");
+      const weeklySummary = await Order.getSalesSummary(restaurantId, "week");
+      const monthlySummary = await Order.getSalesSummary(restaurantId, "month");
 
       return {
         basic: basicStats,
@@ -472,13 +481,12 @@ class OrderService {
         summaries: {
           today: dailySummary,
           week: weeklySummary,
-          month: monthlySummary
+          month: monthlySummary,
         },
-        generated_at: new Date().toISOString()
+        generated_at: new Date().toISOString(),
       };
-
     } catch (error) {
-      logger.error('Error obteniendo estadísticas de pedidos:', error);
+      logger.error("Error obteniendo estadísticas de pedidos:", error);
       throw error;
     }
   }
@@ -501,8 +509,8 @@ class OrderService {
         neighborhood = null,
         page = 1,
         limit = 20,
-        sort_by = 'created_at',
-        sort_order = 'DESC'
+        sort_by = "created_at",
+        sort_order = "DESC",
       } = filters;
 
       // Preparar opciones para el modelo
@@ -510,7 +518,7 @@ class OrderService {
         page: parseInt(page),
         limit: parseInt(limit),
         sortBy: sort_by,
-        sortOrder: sort_order.toUpperCase()
+        sortOrder: sort_order.toUpperCase(),
       };
 
       // Agregar filtros
@@ -523,22 +531,29 @@ class OrderService {
 
       // Filtros adicionales que no están en el modelo base
       if (min_total || max_total || neighborhood) {
-        results.orders = results.orders.filter(order => {
+        results.orders = results.orders.filter((order) => {
           if (min_total && order.total < min_total) return false;
           if (max_total && order.total > max_total) return false;
-          if (neighborhood && !order.delivery_neighborhood?.toLowerCase().includes(neighborhood.toLowerCase())) return false;
+          if (
+            neighborhood &&
+            !order.delivery_neighborhood
+              ?.toLowerCase()
+              .includes(neighborhood.toLowerCase())
+          )
+            return false;
           return true;
         });
 
         // Recalcular paginación después del filtro
         results.pagination.total_items = results.orders.length;
-        results.pagination.total_pages = Math.ceil(results.orders.length / limit);
+        results.pagination.total_pages = Math.ceil(
+          results.orders.length / limit
+        );
       }
 
       return results;
-
     } catch (error) {
-      logger.error('Error buscando pedidos:', error);
+      logger.error("Error buscando pedidos:", error);
       throw error;
     }
   }
@@ -551,19 +566,21 @@ class OrderService {
   static async validateOrderModification(orderId) {
     try {
       const order = await Order.findById(orderId);
-      
+
       if (!order) {
         return {
           canModify: false,
-          reason: 'Pedido no encontrado'
+          reason: "Pedido no encontrado",
         };
       }
 
       // No se puede modificar si ya está entregado o cancelado
-      if ([ORDER_STATUS.DELIVERED, ORDER_STATUS.CANCELLED].includes(order.status)) {
+      if (
+        [ORDER_STATUS.DELIVERED, ORDER_STATUS.CANCELLED].includes(order.status)
+      ) {
         return {
           canModify: false,
-          reason: `No se puede modificar un pedido ${order.status}`
+          reason: `No se puede modificar un pedido ${order.status}`,
         };
       }
 
@@ -571,34 +588,34 @@ class OrderService {
       if (order.status === ORDER_STATUS.OUT_FOR_DELIVERY) {
         return {
           canModify: false,
-          reason: 'El pedido ya está en camino'
+          reason: "El pedido ya está en camino",
         };
       }
 
       // Verificar tiempo transcurrido
-      const minutesSinceOrder = (Date.now() - new Date(order.created_at).getTime()) / (1000 * 60);
-      
-      if (minutesSinceOrder > 10) { // 10 minutos límite para modificaciones
+      const minutesSinceOrder =
+        (Date.now() - new Date(order.created_at).getTime()) / (1000 * 60);
+
+      if (minutesSinceOrder > 10) {
+        // 10 minutos límite para modificaciones
         return {
           canModify: false,
-          reason: 'Tiempo límite para modificaciones excedido'
+          reason: "Tiempo límite para modificaciones excedido",
         };
       }
 
       return {
         canModify: true,
-        order
+        order,
       };
-
     } catch (error) {
-      logger.error('Error validando modificación de pedido:', error);
+      logger.error("Error validando modificación de pedido:", error);
       return {
         canModify: false,
-        reason: 'Error interno'
+        reason: "Error interno",
       };
     }
   }
-
   /**
    * Genera reporte de ventas
    * @param {string} restaurantId - ID del restaurante
@@ -610,19 +627,25 @@ class OrderService {
       const {
         start_date = null,
         end_date = null,
-        group_by = 'day', // day, week, month
-        include_items = false
+        group_by = "day",
+        include_items = false,
       } = options;
 
       const dateRange = {};
-      if (start_date) dateRange.startDate = start_date;
-      if (end_date) dateRange.endDate = end_date;
+      if (start_date) {
+        // Usar solo la fecha sin hora para evitar problemas de zona horaria
+        dateRange.startDate = start_date;
+      }
+      if (end_date) {
+        // Usar solo la fecha sin hora
+        dateRange.endDate = end_date;
+      }
 
       const report = {
         restaurant_id: restaurantId,
         period: { start_date, end_date },
         generated_at: new Date().toISOString(),
-        summary: await Order.getStats(restaurantId, dateRange)
+        summary: await Order.getStats(restaurantId, dateRange),
       };
 
       if (include_items) {
@@ -634,9 +657,58 @@ class OrderService {
       report.grouped_data = []; // Placeholder para datos agrupados
 
       return report;
-
     } catch (error) {
-      logger.error('Error generando reporte de ventas:', error);
+      logger.error("Error generando reporte de ventas:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Obtiene resumen rápido de pedidos para el día actual
+   * @param {string} restaurantId - ID del restaurante
+   * @param {Object} options - Opciones adicionales
+   * @returns {Promise<Object>} Resumen de pedidos
+   */
+  static async getOrdersSummary(restaurantId, options = {}) {
+    try {
+      // Obtener resumen del día actual
+      const todaySummary = await Order.getSalesSummary(restaurantId, "today");
+
+      // Obtener estadísticas básicas del día
+      const today = new Date();
+      const startOfDay = new Date(
+        today.getFullYear(),
+        today.getMonth(),
+        today.getDate()
+      );
+      const endOfDay = new Date(
+        today.getFullYear(),
+        today.getMonth(),
+        today.getDate(),
+        23,
+        59,
+        59
+      );
+
+      const dateRange = {
+        startDate: startOfDay.toISOString(),
+        endDate: endOfDay.toISOString(),
+      };
+
+      const basicStats = await Order.getStats(restaurantId, dateRange);
+
+      return {
+        total_orders: basicStats.total_orders || 0,
+        orders_today: todaySummary.total_orders || 0,
+        revenue_today: todaySummary.total_revenue || 0,
+        active_orders: basicStats.active_orders || 0,
+        pending_orders: basicStats.pending_orders || 0,
+        completed_orders: basicStats.completed_orders || 0,
+        cancelled_orders: basicStats.cancelled_orders || 0,
+        generated_at: new Date().toISOString(),
+      };
+    } catch (error) {
+      logger.error("Error obteniendo resumen de pedidos:", error);
       throw error;
     }
   }

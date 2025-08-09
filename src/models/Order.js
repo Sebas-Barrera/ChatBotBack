@@ -1,15 +1,18 @@
-const { query, transaction } = require('../config/database');
-const logger = require('../utils/logger');
-const { v4: uuidv4 } = require('uuid');
-const { ValidationError, DatabaseError, NotFoundError } = require('../middleware/errorHandler');
-const { ORDER_STATUS, BUSINESS_CONFIG } = require('../utils/constants');
+const { query, transaction } = require("../config/database");
+const logger = require("../utils/logger");
+const { v4: uuidv4 } = require("uuid");
+const {
+  ValidationError,
+  DatabaseError,
+  NotFoundError,
+} = require("../middleware/errorHandler");
+const { ORDER_STATUS, BUSINESS_CONFIG } = require("../utils/constants");
 
 // ============================================
 // MODELO ORDER
 // ============================================
 
 class Order {
-
   /**
    * Crea un nuevo pedido desde una conversación
    * @param {Object} orderData - Datos del pedido
@@ -32,20 +35,20 @@ class Order {
       delivery_fee = 0,
       total,
       estimated_delivery_time = null,
-      special_instructions = null
+      special_instructions = null,
     } = orderData;
 
     // Validaciones básicas
     if (!restaurant_id || !customer_phone || !items || items.length === 0) {
-      throw new ValidationError('Datos de pedido incompletos');
+      throw new ValidationError("Datos de pedido incompletos");
     }
 
     if (!delivery_street || !delivery_number || !delivery_neighborhood) {
-      throw new ValidationError('Dirección de entrega incompleta');
+      throw new ValidationError("Dirección de entrega incompleta");
     }
 
     if (subtotal <= 0 || total <= 0) {
-      throw new ValidationError('Montos del pedido inválidos');
+      throw new ValidationError("Montos del pedido inválidos");
     }
 
     try {
@@ -60,10 +63,22 @@ class Order {
           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
           RETURNING *`,
           [
-            uuidv4(), restaurant_id, customer_id, conversation_id, customer_phone, customer_name,
-            delivery_street, delivery_number, delivery_neighborhood,
-            delivery_references, delivery_postal_code,
-            subtotal, delivery_fee, total, estimated_delivery_time, special_instructions
+            uuidv4(),
+            restaurant_id,
+            customer_id,
+            conversation_id,
+            customer_phone,
+            customer_name,
+            delivery_street,
+            delivery_number,
+            delivery_neighborhood,
+            delivery_references,
+            delivery_postal_code,
+            subtotal,
+            delivery_fee,
+            total,
+            estimated_delivery_time,
+            special_instructions,
           ]
         );
 
@@ -86,7 +101,7 @@ class Order {
               JSON.stringify(item.customizations || []),
               item.customizations_cost || 0,
               item.item_total,
-              item.notes || null
+              item.notes || null,
             ]
           );
         }
@@ -103,20 +118,19 @@ class Order {
           );
         }
 
-        logger.info('Pedido creado exitosamente', {
+        logger.info("Pedido creado exitosamente", {
           orderId: order.id,
           restaurantId: restaurant_id,
-          customerPhone: customer_phone.substring(0, 8) + '****',
+          customerPhone: customer_phone.substring(0, 8) + "****",
           total: total,
-          itemsCount: items.length
+          itemsCount: items.length,
         });
 
         return order;
       });
-
     } catch (error) {
-      logger.error('Error creando pedido:', error);
-      throw new DatabaseError('Error al crear pedido', error);
+      logger.error("Error creando pedido:", error);
+      throw new DatabaseError("Error al crear pedido", error);
     }
   }
 
@@ -128,11 +142,11 @@ class Order {
    */
   static async findById(orderId, restaurantId = null) {
     try {
-      let whereClause = 'WHERE o.id = $1';
+      let whereClause = "WHERE o.id = $1";
       const values = [orderId];
 
       if (restaurantId) {
-        whereClause += ' AND o.restaurant_id = $2';
+        whereClause += " AND o.restaurant_id = $2";
         values.push(restaurantId);
       }
 
@@ -146,7 +160,7 @@ class Order {
         JOIN restaurants r ON o.restaurant_id = r.id
         ${whereClause}`,
         values,
-        'find_order_by_id'
+        "find_order_by_id"
       );
 
       if (orderResult.rows.length === 0) {
@@ -166,20 +180,19 @@ class Order {
         WHERE oi.order_id = $1
         ORDER BY oi.created_at`,
         [orderId],
-        'get_order_items'
+        "get_order_items"
       );
 
       // Parsear customizaciones
-      order.items = itemsResult.rows.map(item => ({
+      order.items = itemsResult.rows.map((item) => ({
         ...item,
-        customizations: JSON.parse(item.customizations || '[]')
+        customizations: JSON.parse(item.customizations || "[]"),
       }));
 
       return order;
-
     } catch (error) {
-      logger.error('Error obteniendo pedido por ID:', error);
-      throw new DatabaseError('Error al obtener pedido', error);
+      logger.error("Error obteniendo pedido por ID:", error);
+      throw new DatabaseError("Error al obtener pedido", error);
     }
   }
 
@@ -192,13 +205,13 @@ class Order {
    */
   static async updateStatus(orderId, newStatus, additionalData = {}) {
     const validStatuses = Object.values(ORDER_STATUS);
-    
+
     if (!validStatuses.includes(newStatus)) {
-      throw new ValidationError('Estado de pedido inválido');
+      throw new ValidationError("Estado de pedido inválido");
     }
 
     try {
-      const fields = ['status = $2'];
+      const fields = ["status = $2"];
       const values = [orderId, newStatus];
       let paramCount = 3;
 
@@ -223,28 +236,27 @@ class Order {
 
       const result = await query(
         `UPDATE orders 
-         SET ${fields.join(', ')}, updated_at = CURRENT_TIMESTAMP
+         SET ${fields.join(", ")}, updated_at = CURRENT_TIMESTAMP
          WHERE id = $1
          RETURNING *`,
         values,
-        'update_order_status'
+        "update_order_status"
       );
 
       if (result.rows.length === 0) {
-        throw new NotFoundError('Pedido');
+        throw new NotFoundError("Pedido");
       }
 
-      logger.info('Estado de pedido actualizado', {
+      logger.info("Estado de pedido actualizado", {
         orderId,
         newStatus,
-        previousStatus: result.rows[0].status
+        previousStatus: result.rows[0].status,
       });
 
       return result.rows[0];
-
     } catch (error) {
-      logger.error('Error actualizando estado de pedido:', error);
-      throw new DatabaseError('Error al actualizar pedido', error);
+      logger.error("Error actualizando estado de pedido:", error);
+      throw new DatabaseError("Error al actualizar pedido", error);
     }
   }
 
@@ -262,24 +274,24 @@ class Order {
       customerPhone = null,
       startDate = null,
       endDate = null,
-      sortBy = 'created_at',
-      sortOrder = 'DESC'
+      sortBy = "created_at",
+      sortOrder = "DESC",
     } = options;
 
     const offset = (page - 1) * limit;
-    const validSortFields = ['created_at', 'total', 'status', 'customer_name'];
-    const validSortOrders = ['ASC', 'DESC'];
+    const validSortFields = ["created_at", "total", "status", "customer_name"];
+    const validSortOrders = ["ASC", "DESC"];
 
     if (!validSortFields.includes(sortBy)) {
-      throw new ValidationError('Campo de ordenamiento inválido');
+      throw new ValidationError("Campo de ordenamiento inválido");
     }
 
     if (!validSortOrders.includes(sortOrder.toUpperCase())) {
-      throw new ValidationError('Orden de ordenamiento inválido');
+      throw new ValidationError("Orden de ordenamiento inválido");
     }
 
     try {
-      const conditions = ['o.restaurant_id = $1'];
+      const conditions = ["o.restaurant_id = $1"];
       const values = [restaurantId];
       let paramCount = 2;
 
@@ -307,8 +319,9 @@ class Order {
         paramCount++;
       }
 
-      const whereClause = conditions.join(' AND ');
+      const whereClause = conditions.join(" AND ");
 
+      // Consulta principal
       // Consulta principal
       const ordersResult = await query(
         `SELECT 
@@ -323,14 +336,14 @@ class Order {
         ORDER BY o.${sortBy} ${sortOrder.toUpperCase()}
         LIMIT $${paramCount} OFFSET $${paramCount + 1}`,
         [...values, limit, offset],
-        'find_orders_by_restaurant'
+        "find_orders_by_restaurant"
       );
 
-      // Contar total
+      // Contar total - CORREGIR: usar solo los valores originales sin limit y offset
       const countResult = await query(
         `SELECT COUNT(*) as total FROM orders o WHERE ${whereClause}`,
-        values.slice(0, -2),
-        'count_orders_by_restaurant'
+        values,
+        "count_orders_by_restaurant"
       );
 
       const total = parseInt(countResult.rows[0].total);
@@ -344,13 +357,12 @@ class Order {
           total_items: total,
           items_per_page: limit,
           has_next: page < totalPages,
-          has_prev: page > 1
-        }
+          has_prev: page > 1,
+        },
       };
-
     } catch (error) {
-      logger.error('Error obteniendo pedidos por restaurante:', error);
-      throw new DatabaseError('Error al obtener pedidos', error);
+      logger.error("Error obteniendo pedidos por restaurante:", error);
+      throw new DatabaseError("Error al obtener pedidos", error);
     }
   }
 
@@ -363,11 +375,11 @@ class Order {
    */
   static async findByCustomer(customerPhone, restaurantId = null, limit = 10) {
     try {
-      let whereClause = 'WHERE o.customer_phone = $1';
+      let whereClause = "WHERE o.customer_phone = $1";
       const values = [customerPhone];
 
       if (restaurantId) {
-        whereClause += ' AND o.restaurant_id = $2';
+        whereClause += " AND o.restaurant_id = $2";
         values.push(restaurantId);
         values.push(limit);
       } else {
@@ -387,14 +399,13 @@ class Order {
         ORDER BY o.created_at DESC
         LIMIT $${values.length}`,
         values,
-        'find_orders_by_customer'
+        "find_orders_by_customer"
       );
 
       return result.rows;
-
     } catch (error) {
-      logger.error('Error obteniendo pedidos por cliente:', error);
-      throw new DatabaseError('Error al obtener pedidos del cliente', error);
+      logger.error("Error obteniendo pedidos por cliente:", error);
+      throw new DatabaseError("Error al obtener pedidos del cliente", error);
     }
   }
 
@@ -406,13 +417,14 @@ class Order {
    */
   static async getStats(restaurantId, dateRange = {}) {
     const { startDate, endDate } = dateRange;
-    
+
     try {
-      let dateCondition = '';
+      let dateCondition = "";
       const values = [restaurantId];
 
       if (startDate && endDate) {
-        dateCondition = 'AND o.created_at BETWEEN $2 AND $3';
+        // Usar DATE() para comparar solo las fechas, ignorando la hora
+        dateCondition = "AND DATE(o.created_at) BETWEEN $2 AND $3";
         values.push(startDate, endDate);
       }
 
@@ -433,29 +445,34 @@ class Order {
         FROM orders o
         WHERE restaurant_id = $1 ${dateCondition}`,
         values,
-        'get_order_stats'
+        "get_order_stats"
       );
 
       const stats = result.rows[0];
 
       // Calcular tasas
       const totalOrders = parseInt(stats.total_orders);
-      stats.delivery_rate = totalOrders > 0 
-        ? ((parseInt(stats.delivered_orders) / totalOrders) * 100).toFixed(2)
-        : 0;
+      stats.delivery_rate =
+        totalOrders > 0
+          ? ((parseInt(stats.delivered_orders) / totalOrders) * 100).toFixed(2)
+          : 0;
 
-      stats.cancellation_rate = totalOrders > 0
-        ? ((parseInt(stats.cancelled_orders) / totalOrders) * 100).toFixed(2)
-        : 0;
+      stats.cancellation_rate =
+        totalOrders > 0
+          ? ((parseInt(stats.cancelled_orders) / totalOrders) * 100).toFixed(2)
+          : 0;
 
-      stats.average_order_value = parseFloat(stats.average_order_value || 0).toFixed(2);
-      stats.avg_delivery_time_minutes = parseFloat(stats.avg_delivery_time_minutes || 0).toFixed(2);
+      stats.average_order_value = parseFloat(
+        stats.average_order_value || 0
+      ).toFixed(2);
+      stats.avg_delivery_time_minutes = parseFloat(
+        stats.avg_delivery_time_minutes || 0
+      ).toFixed(2);
 
       return stats;
-
     } catch (error) {
-      logger.error('Error obteniendo estadísticas de pedidos:', error);
-      throw new DatabaseError('Error al obtener estadísticas', error);
+      logger.error("Error obteniendo estadísticas de pedidos:", error);
+      throw new DatabaseError("Error al obtener estadísticas", error);
     }
   }
 
@@ -468,13 +485,13 @@ class Order {
    */
   static async getTopItems(restaurantId, dateRange = {}, limit = 10) {
     const { startDate, endDate } = dateRange;
-    
+
     try {
-      let dateCondition = '';
+      let dateCondition = "";
       const values = [restaurantId];
 
       if (startDate && endDate) {
-        dateCondition = 'AND o.created_at BETWEEN $2 AND $3';
+        dateCondition = "AND o.created_at BETWEEN $2 AND $3";
         values.push(startDate, endDate);
         values.push(limit);
       } else {
@@ -498,14 +515,13 @@ class Order {
         ORDER BY total_quantity DESC, order_count DESC
         LIMIT $${values.length}`,
         values,
-        'get_top_items'
+        "get_top_items"
       );
 
       return result.rows;
-
     } catch (error) {
-      logger.error('Error obteniendo items más vendidos:', error);
-      throw new DatabaseError('Error al obtener items populares', error);
+      logger.error("Error obteniendo items más vendidos:", error);
+      throw new DatabaseError("Error al obtener items populares", error);
     }
   }
 
@@ -528,14 +544,13 @@ class Order {
         GROUP BY o.id
         ORDER BY o.created_at ASC`,
         [restaurantId],
-        'get_active_orders'
+        "get_active_orders"
       );
 
       return result.rows;
-
     } catch (error) {
-      logger.error('Error obteniendo pedidos activos:', error);
-      throw new DatabaseError('Error al obtener pedidos activos', error);
+      logger.error("Error obteniendo pedidos activos:", error);
+      throw new DatabaseError("Error al obtener pedidos activos", error);
     }
   }
 
@@ -550,32 +565,33 @@ class Order {
       // Verificar que el pedido pueda ser cancelado
       const order = await this.findById(orderId);
       if (!order) {
-        throw new NotFoundError('Pedido');
+        throw new NotFoundError("Pedido");
       }
 
       if (order.status === ORDER_STATUS.DELIVERED) {
-        throw new ValidationError('No se puede cancelar un pedido ya entregado');
+        throw new ValidationError(
+          "No se puede cancelar un pedido ya entregado"
+        );
       }
 
       if (order.status === ORDER_STATUS.CANCELLED) {
-        throw new ValidationError('El pedido ya está cancelado');
+        throw new ValidationError("El pedido ya está cancelado");
       }
 
       const result = await this.updateStatus(orderId, ORDER_STATUS.CANCELLED, {
-        internal_notes: reason ? `Cancelado: ${reason}` : 'Pedido cancelado'
+        internal_notes: reason ? `Cancelado: ${reason}` : "Pedido cancelado",
       });
 
-      logger.info('Pedido cancelado', {
+      logger.info("Pedido cancelado", {
         orderId,
         reason,
-        previousStatus: order.status
+        previousStatus: order.status,
       });
 
       return result;
-
     } catch (error) {
-      logger.error('Error cancelando pedido:', error);
-      throw new DatabaseError('Error al cancelar pedido', error);
+      logger.error("Error cancelando pedido:", error);
+      throw new DatabaseError("Error al cancelar pedido", error);
     }
   }
 
@@ -589,9 +605,9 @@ class Order {
     try {
       // Obtener configuración base del restaurante
       const restaurantResult = await query(
-        'SELECT delivery_time_min, delivery_time_max FROM restaurants WHERE id = $1',
+        "SELECT delivery_time_min, delivery_time_max FROM restaurants WHERE id = $1",
         [restaurantId],
-        'get_restaurant_delivery_times'
+        "get_restaurant_delivery_times"
       );
 
       if (restaurantResult.rows.length === 0) {
@@ -606,7 +622,7 @@ class Order {
           `SELECT extra_fee FROM delivery_zones 
            WHERE restaurant_id = $1 AND $2 = ANY(neighborhoods) AND is_active = true`,
           [restaurantId, neighborhood],
-          'check_delivery_zone'
+          "check_delivery_zone"
         );
 
         // Si está en zona especial, agregar tiempo extra
@@ -622,7 +638,7 @@ class Order {
          WHERE restaurant_id = $1 
          AND status IN ('confirmed', 'preparing')`,
         [restaurantId],
-        'count_active_orders'
+        "count_active_orders"
       );
 
       const activeCount = parseInt(activeOrdersResult.rows[0].active_count);
@@ -636,9 +652,8 @@ class Order {
       }
 
       return estimatedTime;
-
     } catch (error) {
-      logger.error('Error calculando tiempo de entrega:', error);
+      logger.error("Error calculando tiempo de entrega:", error);
       return 30; // Valor por defecto en caso de error
     }
   }
@@ -649,18 +664,18 @@ class Order {
    * @param {string} period - Período: 'today', 'week', 'month'
    * @returns {Promise<Object>} Resumen de ventas
    */
-  static async getSalesSummary(restaurantId, period = 'today') {
+  static async getSalesSummary(restaurantId, period = "today") {
     try {
-      let dateCondition = '';
-      
+      let dateCondition = "";
+
       switch (period) {
-        case 'today':
+        case "today":
           dateCondition = "AND DATE(created_at) = CURRENT_DATE";
           break;
-        case 'week':
+        case "week":
           dateCondition = "AND created_at >= CURRENT_DATE - INTERVAL '7 days'";
           break;
-        case 'month':
+        case "month":
           dateCondition = "AND created_at >= CURRENT_DATE - INTERVAL '30 days'";
           break;
         default:
@@ -677,20 +692,20 @@ class Order {
         FROM orders 
         WHERE restaurant_id = $1 ${dateCondition}`,
         [restaurantId],
-        'get_sales_summary'
+        "get_sales_summary"
       );
 
       const summary = result.rows[0];
       summary.period = period;
-      summary.completion_rate = summary.total_orders > 0 
-        ? ((summary.completed_orders / summary.total_orders) * 100).toFixed(2)
-        : 0;
+      summary.completion_rate =
+        summary.total_orders > 0
+          ? ((summary.completed_orders / summary.total_orders) * 100).toFixed(2)
+          : 0;
 
       return summary;
-
     } catch (error) {
-      logger.error('Error obteniendo resumen de ventas:', error);
-      throw new DatabaseError('Error al obtener resumen de ventas', error);
+      logger.error("Error obteniendo resumen de ventas:", error);
+      throw new DatabaseError("Error al obtener resumen de ventas", error);
     }
   }
 }

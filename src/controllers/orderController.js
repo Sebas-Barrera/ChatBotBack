@@ -1,16 +1,15 @@
-const Order = require('../models/Order');
-const OrderService = require('../services/orderService');
-const ValidationService = require('../services/validationService');
-const logger = require('../utils/logger');
-const { ORDER_STATUS } = require('../utils/constants');
-const { asyncHandler } = require('../middleware/errorHandler');
+const Order = require("../models/Order");
+const OrderService = require("../services/orderService");
+const ValidationService = require("../services/validationService");
+const logger = require("../utils/logger");
+const { ORDER_STATUS } = require("../utils/constants");
+const { asyncHandler } = require("../middleware/errorHandler");
 
 // ============================================
 // CONTROLADOR DE PEDIDOS
 // ============================================
 
 class OrderController {
-
   /**
    * Obtiene pedidos de un restaurante con filtros
    * @param {Object} req - Request object
@@ -18,28 +17,31 @@ class OrderController {
    */
   static getOrders = asyncHandler(async (req, res) => {
     try {
-      const restaurantId = req.restaurant?.id || req.params.restaurantId;
-      
+      // Para Super Admin viene en params, para otros roles viene en req.restaurant
+      const restaurantId = req.params.restaurantId || req.restaurant?.id;
+
       if (!restaurantId) {
         return res.status(400).json({
           success: false,
-          error: 'ID de restaurante requerido'
+          error: "ID de restaurante requerido",
         });
       }
 
       if (!ValidationService.isValidUUID(restaurantId)) {
         return res.status(400).json({
           success: false,
-          error: 'ID de restaurante inválido'
+          error: "ID de restaurante inválido",
         });
       }
 
       // Validar parámetros de paginación
-      const paginationValidation = ValidationService.validatePaginationParams(req.query);
+      const paginationValidation = ValidationService.validatePaginationParams(
+        req.query
+      );
       if (!paginationValidation.isValid) {
         return res.status(400).json({
           success: false,
-          error: paginationValidation.error
+          error: paginationValidation.error,
         });
       }
 
@@ -51,50 +53,32 @@ class OrderController {
         limit,
         sort_by,
         sort_order,
-        status: req.query.status,
-        customer_phone: req.query.customer_phone,
-        start_date: req.query.start_date,
-        end_date: req.query.end_date
+        status: req.query.status || null,
+        from_date: req.query.from_date || null,
+        to_date: req.query.to_date || null,
+        customer_phone: req.query.customer_phone || null,
       };
-
-      // Validar fechas si están presentes
-      if (filters.start_date || filters.end_date) {
-        const dateValidation = ValidationService.validateDateRangeParams({
-          start_date: filters.start_date,
-          end_date: filters.end_date
-        });
-        
-        if (!dateValidation.isValid) {
-          return res.status(400).json({
-            success: false,
-            error: dateValidation.error
-          });
-        }
-      }
 
       // Obtener pedidos
       const result = await Order.findByRestaurant(restaurantId, filters);
 
-      logger.info('Pedidos obtenidos', {
+      logger.info("Pedidos obtenidos", {
         restaurantId,
-        page,
-        limit,
-        totalItems: result.pagination.total_items,
-        filtersApplied: Object.keys(filters).filter(key => filters[key]).length
+        totalOrders: result.pagination.total,
+        page: result.pagination.page,
+        filters: Object.keys(filters).filter((k) => filters[k] !== null),
       });
 
       res.json({
         success: true,
-        data: result.orders,
-        pagination: result.pagination,
-        filters_applied: filters
+        data: result,
       });
-
     } catch (error) {
-      logger.error('Error obteniendo pedidos:', error);
+      logger.error("Error obteniendo pedidos:", error);
       res.status(500).json({
         success: false,
-        error: 'Error obteniendo pedidos'
+        error: "Error obteniendo pedidos",
+        message: error.message,
       });
     }
   });
@@ -112,7 +96,7 @@ class OrderController {
       if (!ValidationService.isValidUUID(orderId)) {
         return res.status(400).json({
           success: false,
-          error: 'ID de pedido inválido'
+          error: "ID de pedido inválido",
         });
       }
 
@@ -121,26 +105,25 @@ class OrderController {
       if (!order) {
         return res.status(404).json({
           success: false,
-          error: 'Pedido no encontrado'
+          error: "Pedido no encontrado",
         });
       }
 
-      logger.info('Pedido obtenido por ID', {
+      logger.info("Pedido obtenido por ID", {
         orderId,
         restaurantId: order.restaurant_id,
-        status: order.status
+        status: order.status,
       });
 
       res.json({
         success: true,
-        data: order
+        data: order,
       });
-
     } catch (error) {
-      logger.error('Error obteniendo pedido por ID:', error);
+      logger.error("Error obteniendo pedido por ID:", error);
       res.status(500).json({
         success: false,
-        error: 'Error obteniendo pedido'
+        error: "Error obteniendo pedido",
       });
     }
   });
@@ -157,18 +140,20 @@ class OrderController {
       if (!validation.isValid) {
         return res.status(400).json({
           success: false,
-          error: validation.error
+          error: validation.error,
         });
       }
 
       const orderData = validation.data;
 
       // Validar dirección de entrega
-      const addressValidation = ValidationService.validateDeliveryAddress(orderData.delivery_address);
+      const addressValidation = ValidationService.validateDeliveryAddress(
+        orderData.delivery_address
+      );
       if (!addressValidation.isValid) {
         return res.status(400).json({
           success: false,
-          error: `Dirección inválida: ${addressValidation.error}`
+          error: `Dirección inválida: ${addressValidation.error}`,
         });
       }
 
@@ -179,7 +164,7 @@ class OrderController {
         delivery_number: orderData.delivery_address.number,
         delivery_neighborhood: orderData.delivery_address.neighborhood,
         delivery_references: orderData.delivery_address.references,
-        delivery_postal_code: orderData.delivery_address.postal_code
+        delivery_postal_code: orderData.delivery_address.postal_code,
       };
 
       // Calcular tiempo estimado de entrega
@@ -192,24 +177,23 @@ class OrderController {
       // Crear pedido
       const order = await Order.create(expandedOrderData);
 
-      logger.info('Pedido creado manualmente', {
+      logger.info("Pedido creado manualmente", {
         orderId: order.id,
         restaurantId: order.restaurant_id,
-        customerPhone: order.customer_phone?.substring(0, 8) + '****',
-        total: order.total
+        customerPhone: order.customer_phone?.substring(0, 8) + "****",
+        total: order.total,
       });
 
       res.status(201).json({
         success: true,
-        message: 'Pedido creado exitosamente',
-        data: order
+        message: "Pedido creado exitosamente",
+        data: order,
       });
-
     } catch (error) {
-      logger.error('Error creando pedido:', error);
+      logger.error("Error creando pedido:", error);
       res.status(500).json({
         success: false,
-        error: 'Error creando pedido'
+        error: "Error creando pedido",
       });
     }
   });
@@ -226,7 +210,7 @@ class OrderController {
       if (!ValidationService.isValidUUID(orderId)) {
         return res.status(400).json({
           success: false,
-          error: 'ID de pedido inválido'
+          error: "ID de pedido inválido",
         });
       }
 
@@ -235,44 +219,48 @@ class OrderController {
       if (!validation.isValid) {
         return res.status(400).json({
           success: false,
-          error: validation.error
+          error: validation.error,
         });
       }
 
-      const { status, internal_notes, estimated_delivery_time } = validation.data;
+      const { status, internal_notes, estimated_delivery_time } =
+        validation.data;
 
       // Actualizar estado usando el servicio
-      const updatedOrder = await OrderService.updateOrderStatus(orderId, status, {
-        internal_notes,
-        estimated_delivery_time,
-        notify_customer: req.body.notify_customer !== false, // Default true
-        restaurant: req.restaurant
-      });
+      const updatedOrder = await OrderService.updateOrderStatus(
+        orderId,
+        status,
+        {
+          internal_notes,
+          estimated_delivery_time,
+          notify_customer: req.body.notify_customer !== false, // Default true
+          restaurant: req.restaurant,
+        }
+      );
 
-      logger.info('Estado de pedido actualizado', {
+      logger.info("Estado de pedido actualizado", {
         orderId,
         newStatus: status,
-        notifyCustomer: req.body.notify_customer !== false
+        notifyCustomer: req.body.notify_customer !== false,
       });
 
       res.json({
         success: true,
-        message: 'Estado actualizado exitosamente',
-        data: updatedOrder
+        message: "Estado actualizado exitosamente",
+        data: updatedOrder,
       });
-
     } catch (error) {
-      logger.error('Error actualizando estado de pedido:', error);
-      
-      if (error.message.includes('no encontrado')) {
+      logger.error("Error actualizando estado de pedido:", error);
+
+      if (error.message.includes("no encontrado")) {
         res.status(404).json({
           success: false,
-          error: 'Pedido no encontrado'
+          error: "Pedido no encontrado",
         });
       } else {
         res.status(500).json({
           success: false,
-          error: 'Error actualizando pedido'
+          error: "Error actualizando pedido",
         });
       }
     }
@@ -291,52 +279,51 @@ class OrderController {
       if (!ValidationService.isValidUUID(orderId)) {
         return res.status(400).json({
           success: false,
-          error: 'ID de pedido inválido'
+          error: "ID de pedido inválido",
         });
       }
 
       if (!reason || reason.trim().length === 0) {
         return res.status(400).json({
           success: false,
-          error: 'Razón de cancelación es requerida'
+          error: "Razón de cancelación es requerida",
         });
       }
 
       // Cancelar pedido usando el servicio
       const cancelledOrder = await OrderService.cancelOrder(orderId, reason, {
         notify_customer,
-        cancelled_by: 'restaurant'
+        cancelled_by: "restaurant",
       });
 
-      logger.info('Pedido cancelado', {
+      logger.info("Pedido cancelado", {
         orderId,
         reason,
-        notifyCustomer: notify_customer
+        notifyCustomer: notify_customer,
       });
 
       res.json({
         success: true,
-        message: 'Pedido cancelado exitosamente',
-        data: cancelledOrder
+        message: "Pedido cancelado exitosamente",
+        data: cancelledOrder,
       });
-
     } catch (error) {
-      logger.error('Error cancelando pedido:', error);
-      
-      if (error.message.includes('no encontrado')) {
+      logger.error("Error cancelando pedido:", error);
+
+      if (error.message.includes("no encontrado")) {
         res.status(404).json({
           success: false,
-          error: 'Pedido no encontrado'
+          error: "Pedido no encontrado",
         });
-      } else if (error.message.includes('no se puede cancelar')) {
+      } else if (error.message.includes("no se puede cancelar")) {
         res.status(400).json({
           success: false,
-          error: error.message
+          error: error.message,
         });
       } else {
         res.status(500).json({
           success: false,
-          error: 'Error cancelando pedido'
+          error: "Error cancelando pedido",
         });
       }
     }
@@ -349,22 +336,23 @@ class OrderController {
    */
   static getActiveOrders = asyncHandler(async (req, res) => {
     try {
-      const restaurantId = req.restaurant?.id || req.params.restaurantId;
-      
+      // Para Super Admin viene en params, para otros roles viene en req.restaurant
+      const restaurantId = req.params.restaurantId || req.restaurant?.id;
+
       if (!restaurantId) {
         return res.status(400).json({
           success: false,
-          error: 'ID de restaurante requerido'
+          error: "ID de restaurante requerido",
         });
       }
 
       const activeOrders = await OrderService.getActiveOrders(restaurantId);
 
-      logger.info('Pedidos activos obtenidos', {
+      logger.info("Pedidos activos obtenidos", {
         restaurantId,
         count: activeOrders.length,
-        delayedCount: activeOrders.filter(o => o.is_delayed).length,
-        urgentCount: activeOrders.filter(o => o.is_urgent).length
+        delayedCount: activeOrders.filter((o) => o.is_delayed).length,
+        urgentCount: activeOrders.filter((o) => o.is_urgent).length,
       });
 
       res.json({
@@ -373,18 +361,19 @@ class OrderController {
           orders: activeOrders,
           summary: {
             total: activeOrders.length,
-            delayed: activeOrders.filter(o => o.is_delayed).length,
-            urgent: activeOrders.filter(o => o.is_urgent).length,
-            on_time: activeOrders.filter(o => !o.is_delayed && !o.is_urgent).length
-          }
-        }
+            delayed: activeOrders.filter((o) => o.is_delayed).length,
+            urgent: activeOrders.filter((o) => o.is_urgent).length,
+            on_time: activeOrders.filter((o) => !o.is_delayed && !o.is_urgent)
+              .length,
+          },
+        },
       });
-
     } catch (error) {
-      logger.error('Error obteniendo pedidos activos:', error);
+      logger.error("Error obteniendo pedidos activos:", error);
       res.status(500).json({
         success: false,
-        error: 'Error obteniendo pedidos activos'
+        error: "Error obteniendo pedidos activos",
+        message: error.message,
       });
     }
   });
@@ -397,20 +386,22 @@ class OrderController {
   static getOrderStatistics = asyncHandler(async (req, res) => {
     try {
       const restaurantId = req.restaurant?.id || req.params.restaurantId;
-      
+
       if (!restaurantId) {
         return res.status(400).json({
           success: false,
-          error: 'ID de restaurante requerido'
+          error: "ID de restaurante requerido",
         });
       }
 
       // Validar parámetros de fecha
-      const dateValidation = ValidationService.validateDateRangeParams(req.query);
+      const dateValidation = ValidationService.validateDateRangeParams(
+        req.query
+      );
       if (!dateValidation.isValid) {
         return res.status(400).json({
           success: false,
-          error: dateValidation.error
+          error: dateValidation.error,
         });
       }
 
@@ -421,24 +412,26 @@ class OrderController {
       if (end_date) dateRange.endDate = end_date;
 
       // Obtener estadísticas usando el servicio
-      const statistics = await OrderService.getOrderStatistics(restaurantId, dateRange);
+      const statistics = await OrderService.getOrderStatistics(
+        restaurantId,
+        dateRange
+      );
 
-      logger.info('Estadísticas de pedidos obtenidas', {
+      logger.info("Estadísticas de pedidos obtenidas", {
         restaurantId,
         dateRange,
-        totalOrders: statistics.basic.total_orders
+        totalOrders: statistics.basic.total_orders,
       });
 
       res.json({
         success: true,
-        data: statistics
+        data: statistics,
       });
-
     } catch (error) {
-      logger.error('Error obteniendo estadísticas de pedidos:', error);
+      logger.error("Error obteniendo estadísticas de pedidos:", error);
       res.status(500).json({
         success: false,
-        error: 'Error obteniendo estadísticas'
+        error: "Error obteniendo estadísticas",
       });
     }
   });
@@ -450,56 +443,53 @@ class OrderController {
    */
   static searchOrders = asyncHandler(async (req, res) => {
     try {
-      const restaurantId = req.restaurant?.id || req.params.restaurantId;
-      
+      // Para Super Admin viene en params, para otros roles viene en req.restaurant
+      const restaurantId = req.params.restaurantId || req.restaurant?.id;
+
       if (!restaurantId) {
         return res.status(400).json({
           success: false,
-          error: 'ID de restaurante requerido'
+          error: "ID de restaurante requerido",
         });
       }
 
-      // Validar parámetros de paginación
-      const paginationValidation = ValidationService.validatePaginationParams(req.query);
-      if (!paginationValidation.isValid) {
+      const { query: searchQuery = "", limit = 50 } = req.query;
+
+      if (!searchQuery || searchQuery.length < 2) {
         return res.status(400).json({
           success: false,
-          error: paginationValidation.error
+          error: "Búsqueda debe tener al menos 2 caracteres",
         });
       }
 
-      const filters = {
-        ...paginationValidation.data,
-        customer_phone: req.query.customer_phone,
-        status: req.query.status,
-        start_date: req.query.start_date,
-        end_date: req.query.end_date,
-        min_total: req.query.min_total ? parseFloat(req.query.min_total) : null,
-        max_total: req.query.max_total ? parseFloat(req.query.max_total) : null,
-        neighborhood: req.query.neighborhood
-      };
-
-      // Realizar búsqueda
-      const results = await OrderService.searchOrders(restaurantId, filters);
-
-      logger.info('Búsqueda de pedidos realizada', {
+      const orders = await OrderService.searchOrders(
         restaurantId,
-        filtersCount: Object.keys(filters).filter(key => filters[key]).length,
-        resultsCount: results.pagination.total_items
+        searchQuery,
+        {
+          limit: parseInt(limit),
+        }
+      );
+
+      logger.info("Búsqueda de pedidos completada", {
+        restaurantId,
+        searchQuery,
+        resultsCount: orders.length,
       });
 
       res.json({
         success: true,
-        data: results.orders,
-        pagination: results.pagination,
-        filters_applied: filters
+        data: {
+          orders,
+          search_query: searchQuery,
+          total_found: orders.length,
+        },
       });
-
     } catch (error) {
-      logger.error('Error buscando pedidos:', error);
+      logger.error("Error buscando pedidos:", error);
       res.status(500).json({
         success: false,
-        error: 'Error realizando búsqueda'
+        error: "Error en búsqueda",
+        message: error.message,
       });
     }
   });
@@ -518,14 +508,14 @@ class OrderController {
       if (!customerPhone) {
         return res.status(400).json({
           success: false,
-          error: 'Teléfono del cliente requerido'
+          error: "Teléfono del cliente requerido",
         });
       }
 
       if (!ValidationService.isValidMexicanPhone(customerPhone)) {
         return res.status(400).json({
           success: false,
-          error: 'Formato de teléfono inválido'
+          error: "Formato de teléfono inválido",
         });
       }
 
@@ -533,17 +523,21 @@ class OrderController {
       if (limitNumber < 1 || limitNumber > 50) {
         return res.status(400).json({
           success: false,
-          error: 'Límite debe estar entre 1 y 50'
+          error: "Límite debe estar entre 1 y 50",
         });
       }
 
       // Obtener pedidos del cliente
-      const orders = await Order.findByCustomer(customerPhone, restaurantId, limitNumber);
+      const orders = await Order.findByCustomer(
+        customerPhone,
+        restaurantId,
+        limitNumber
+      );
 
-      logger.info('Pedidos de cliente obtenidos', {
-        customerPhone: customerPhone.substring(0, 8) + '****',
-        restaurantId: restaurantId || 'all',
-        ordersFound: orders.length
+      logger.info("Pedidos de cliente obtenidos", {
+        customerPhone: customerPhone.substring(0, 8) + "****",
+        restaurantId: restaurantId || "all",
+        ordersFound: orders.length,
       });
 
       res.json({
@@ -551,15 +545,14 @@ class OrderController {
         data: {
           customer_phone: customerPhone,
           orders,
-          total_found: orders.length
-        }
+          total_found: orders.length,
+        },
       });
-
     } catch (error) {
-      logger.error('Error obteniendo pedidos de cliente:', error);
+      logger.error("Error obteniendo pedidos de cliente:", error);
       res.status(500).json({
         success: false,
-        error: 'Error obteniendo pedidos del cliente'
+        error: "Error obteniendo pedidos del cliente",
       });
     }
   });
@@ -572,57 +565,61 @@ class OrderController {
   static generateSalesReport = asyncHandler(async (req, res) => {
     try {
       const restaurantId = req.restaurant?.id || req.params.restaurantId;
-      
+
       if (!restaurantId) {
         return res.status(400).json({
           success: false,
-          error: 'ID de restaurante requerido'
+          error: "ID de restaurante requerido",
         });
       }
 
       // Validar parámetros de fecha
-      const dateValidation = ValidationService.validateDateRangeParams(req.query);
+      const dateValidation = ValidationService.validateDateRangeParams(
+        req.query
+      );
       if (!dateValidation.isValid) {
         return res.status(400).json({
           success: false,
-          error: dateValidation.error
+          error: dateValidation.error,
         });
       }
 
       const {
         start_date,
         end_date,
-        group_by = 'day',
-        include_items = 'false'
+        group_by = "day",
+        include_items = "false",
       } = req.query;
 
       const options = {
         start_date,
         end_date,
         group_by,
-        include_items: include_items === 'true'
+        include_items: include_items === "true",
       };
 
       // Generar reporte
-      const report = await OrderService.generateSalesReport(restaurantId, options);
+      const report = await OrderService.generateSalesReport(
+        restaurantId,
+        options
+      );
 
-      logger.info('Reporte de ventas generado', {
+      logger.info("Reporte de ventas generado", {
         restaurantId,
         dateRange: { start_date, end_date },
         groupBy: group_by,
-        includeItems: options.include_items
+        includeItems: options.include_items,
       });
 
       res.json({
         success: true,
-        data: report
+        data: report,
       });
-
     } catch (error) {
-      logger.error('Error generando reporte de ventas:', error);
+      logger.error("Error generando reporte de ventas:", error);
       res.status(500).json({
         success: false,
-        error: 'Error generando reporte'
+        error: "Error generando reporte",
       });
     }
   });
@@ -639,7 +636,7 @@ class OrderController {
       if (!ValidationService.isValidUUID(orderId)) {
         return res.status(400).json({
           success: false,
-          error: 'ID de pedido inválido'
+          error: "ID de pedido inválido",
         });
       }
 
@@ -651,15 +648,14 @@ class OrderController {
         data: {
           can_modify: validation.canModify,
           reason: validation.reason,
-          order: validation.order || null
-        }
+          order: validation.order || null,
+        },
       });
-
     } catch (error) {
-      logger.error('Error validando modificación de pedido:', error);
+      logger.error("Error validando modificación de pedido:", error);
       res.status(500).json({
         success: false,
-        error: 'Error validando modificación'
+        error: "Error validando modificación",
       });
     }
   });
@@ -671,50 +667,45 @@ class OrderController {
    */
   static getOrdersSummary = asyncHandler(async (req, res) => {
     try {
-      const restaurantId = req.restaurant?.id || req.params.restaurantId;
-      
+      // Para Super Admin viene en params, para otros roles viene en req.restaurant
+      const restaurantId = req.params.restaurantId || req.restaurant?.id;
+
       if (!restaurantId) {
         return res.status(400).json({
           success: false,
-          error: 'ID de restaurante requerido'
+          error: "ID de restaurante requerido",
         });
       }
 
-      // Obtener resúmenes de diferentes períodos
-      const [todaySummary, weekSummary, monthSummary] = await Promise.all([
-        Order.getSalesSummary(restaurantId, 'today'),
-        Order.getSalesSummary(restaurantId, 'week'),
-        Order.getSalesSummary(restaurantId, 'month')
-      ]);
+      // Obtener resumen del día
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
 
-      // Obtener pedidos activos
-      const activeOrders = await OrderService.getActiveOrders(restaurantId);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
 
-      const summary = {
-        restaurant_id: restaurantId,
-        active_orders: {
-          total: activeOrders.length,
-          delayed: activeOrders.filter(o => o.is_delayed).length,
-          urgent: activeOrders.filter(o => o.is_urgent).length
-        },
-        sales_summary: {
-          today: todaySummary,
-          week: weekSummary,
-          month: monthSummary
-        },
-        generated_at: new Date().toISOString()
-      };
+      const summary = await OrderService.getOrdersSummary(restaurantId, {
+        startDate: today.toISOString(),
+        endDate: tomorrow.toISOString(),
+      });
+
+      logger.info("Resumen de pedidos obtenido", {
+        restaurantId,
+        totalOrders: summary.total_orders,
+        ordersToday: summary.orders_today,
+        revenueToday: summary.revenue_today,
+      });
 
       res.json({
         success: true,
-        data: summary
+        data: summary,
       });
-
     } catch (error) {
-      logger.error('Error obteniendo resumen de pedidos:', error);
+      logger.error("Error obteniendo resumen de pedidos:", error);
       res.status(500).json({
         success: false,
-        error: 'Error obteniendo resumen'
+        error: "Error obteniendo resumen",
+        message: error.message,
       });
     }
   });
@@ -731,30 +722,36 @@ class OrderController {
       if (!Array.isArray(updates) || updates.length === 0) {
         return res.status(400).json({
           success: false,
-          error: 'Se requiere un array de actualizaciones'
+          error: "Se requiere un array de actualizaciones",
         });
       }
 
       if (updates.length > 50) {
         return res.status(400).json({
           success: false,
-          error: 'Máximo 50 actualizaciones por lote'
+          error: "Máximo 50 actualizaciones por lote",
         });
       }
 
-      // Validar estructura de actualizaciones  
+      // Validar estructura de actualizaciones
       for (const update of updates) {
-        if (!update.order_id || !ValidationService.isValidUUID(update.order_id)) {
+        if (
+          !update.order_id ||
+          !ValidationService.isValidUUID(update.order_id)
+        ) {
           return res.status(400).json({
             success: false,
-            error: 'ID de pedido inválido en actualizaciones'
+            error: "ID de pedido inválido en actualizaciones",
           });
         }
 
-        if (!update.status || !Object.values(ORDER_STATUS).includes(update.status)) {
+        if (
+          !update.status ||
+          !Object.values(ORDER_STATUS).includes(update.status)
+        ) {
           return res.status(400).json({
             success: false,
-            error: 'Estado inválido en actualizaciones'
+            error: "Estado inválido en actualizaciones",
           });
         }
       }
@@ -771,31 +768,30 @@ class OrderController {
             update.status,
             {
               internal_notes: update.internal_notes,
-              notify_customer: update.notify_customer !== false
+              notify_customer: update.notify_customer !== false,
             }
           );
 
           results.push({
             order_id: update.order_id,
             success: true,
-            new_status: update.status
+            new_status: update.status,
           });
           successCount++;
-
         } catch (error) {
           results.push({
             order_id: update.order_id,
             success: false,
-            error: error.message
+            error: error.message,
           });
           errorCount++;
         }
       }
 
-      logger.info('Actualización en lote de pedidos completada', {
+      logger.info("Actualización en lote de pedidos completada", {
         totalUpdates: updates.length,
         successCount,
-        errorCount
+        errorCount,
       });
 
       res.json({
@@ -806,16 +802,15 @@ class OrderController {
           summary: {
             total: updates.length,
             successful: successCount,
-            failed: errorCount
-          }
-        }
+            failed: errorCount,
+          },
+        },
       });
-
     } catch (error) {
-      logger.error('Error en actualización en lote de pedidos:', error);
+      logger.error("Error en actualización en lote de pedidos:", error);
       res.status(500).json({
         success: false,
-        error: 'Error en actualización en lote'
+        error: "Error en actualización en lote",
       });
     }
   });

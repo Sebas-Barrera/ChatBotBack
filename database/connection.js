@@ -1,5 +1,5 @@
-const { Pool } = require('pg');
-const logger = require('../src/utils/logger');
+const { Pool } = require("pg");
+const logger = require("../src/utils/logger");
 
 // ============================================
 // CONFIGURACIÓN DE CONEXIÓN A POSTGRESQL
@@ -9,30 +9,32 @@ const logger = require('../src/utils/logger');
 // En database/connection.js, actualiza la configuración del pool:
 
 const poolConfig = {
-  user: process.env.DB_USER || 'neondb_owner',
-  host: process.env.DB_HOST || 'ep-dawn-waterfall-aeee70v1-pooler.c-2.us-east-2.aws.neon.tech',
-  database: process.env.DB_NAME || 'neondb',
-  password: process.env.DB_PASSWORD || 'npg_YkBK7W2MvSaQ',
-  port: parseInt(process.env.DB_PORT) || 5432,
-  
+  user: process.env.DB_USER,
+  host: process.env.DB_HOST,
+  database: process.env.DB_NAME,
+  password: process.env.DB_PASSWORD,
+  port: parseInt(process.env.DB_PORT),
+
   // Configuración específica para Neon
   ssl: {
     require: true,
-    rejectUnauthorized: false
+    rejectUnauthorized: false,
   },
-  
+
   // Pool optimizado para Neon
-  max: parseInt(process.env.DB_POOL_MAX) || 5,
-  min: parseInt(process.env.DB_POOL_MIN) || 1,
-  idleTimeoutMillis: parseInt(process.env.DB_IDLE_TIMEOUT) || 30000,
-  connectionTimeoutMillis: parseInt(process.env.DB_CONNECTION_TIMEOUT) || 5000,
-  query_timeout: parseInt(process.env.DB_QUERY_TIMEOUT) || 60000,
-  
+  max: parseInt(process.env.DB_POOL_MAX),
+  min: parseInt(process.env.DB_POOL_MIN),
+  idleTimeoutMillis: parseInt(process.env.DB_IDLE_TIMEOUT),
+  connectionTimeoutMillis: parseInt(process.env.DB_CONNECTION_TIMEOUT),
+  query_timeout: parseInt(process.env.DB_QUERY_TIMEOUT),
+
   // Configuraciones específicas para Neon
-  application_name: 'ChatBot_Chingon',
-  statement_timeout: 60000,
-  idle_in_transaction_session_timeout: 60000
+  application_name: process.env.DB_APPLICATION_NAME || "ChatBot_Chingon",
+  statement_timeout: parseInt(process.env.DB_STATEMENT_TIMEOUT) || 60000,
+  idle_in_transaction_session_timeout:
+    parseInt(process.env.DB_IDLE_TRANSACTION_TIMEOUT) || 60000,
 };
+
 // Crear el pool de conexiones
 const pool = new Pool(poolConfig);
 
@@ -40,34 +42,34 @@ const pool = new Pool(poolConfig);
 // EVENTOS DEL POOL
 // ============================================
 
-pool.on('connect', (client) => {
-  logger.debug('Nueva conexión a PostgreSQL establecida', {
+pool.on("connect", (client) => {
+  logger.debug("Nueva conexión a PostgreSQL establecida", {
     processId: client.processID,
-    database: poolConfig.database
+    database: poolConfig.database,
   });
 });
 
-pool.on('acquire', (client) => {
-  logger.debug('Conexión adquirida del pool', {
+pool.on("acquire", (client) => {
+  logger.debug("Conexión adquirida del pool", {
     processId: client.processID,
     poolSize: pool.totalCount,
     idleCount: pool.idleCount,
-    waitingCount: pool.waitingCount
+    waitingCount: pool.waitingCount,
   });
 });
 
-pool.on('remove', (client) => {
-  logger.debug('Conexión removida del pool', {
+pool.on("remove", (client) => {
+  logger.debug("Conexión removida del pool", {
     processId: client.processID,
-    poolSize: pool.totalCount
+    poolSize: pool.totalCount,
   });
 });
 
-pool.on('error', (err, client) => {
-  logger.error('Error inesperado en cliente del pool:', {
+pool.on("error", (err, client) => {
+  logger.error("Error inesperado en cliente del pool:", {
     error: err.message,
     processId: client?.processID,
-    poolSize: pool.totalCount
+    poolSize: pool.totalCount,
   });
 });
 
@@ -82,17 +84,20 @@ pool.on('error', (err, client) => {
  * @param {string} operationName - Nombre de la operación para logging
  * @returns {Promise<Object>} Resultado de la consulta
  */
-const query = async (text, params = [], operationName = 'unknown') => {
+const query = async (text, params = [], operationName = "unknown") => {
   const start = Date.now();
   const client = await pool.connect();
-  
+
   try {
     // Log de debug para desarrollo
-    if (process.env.NODE_ENV === 'development' && process.env.LOG_SQL === 'true') {
-      logger.debug('Ejecutando consulta SQL', {
+    if (
+      process.env.NODE_ENV === "development" &&
+      process.env.LOG_SQL === "true"
+    ) {
+      logger.debug("Ejecutando consulta SQL", {
         operation: operationName,
-        query: text.replace(/\s+/g, ' ').trim(),
-        params: params.length > 0 ? params : 'sin parámetros'
+        query: text.replace(/\s+/g, " ").trim(),
+        params: params.length > 0 ? params : "sin parámetros",
       });
     }
 
@@ -100,39 +105,39 @@ const query = async (text, params = [], operationName = 'unknown') => {
     const duration = Date.now() - start;
 
     // Log de métricas de rendimiento
-    logger.logDatabase('info', operationName, duration, result.rowCount, {
+    logger.logDatabase("info", operationName, duration, result.rowCount, {
       affectedRows: result.rowCount,
-      command: result.command
+      command: result.command,
     });
 
     // Alertar sobre consultas lentas
-    if (duration > 5000) { // 5 segundos
-      logger.warn('Consulta lenta detectada', {
+    if (duration > 5000) {
+      // 5 segundos
+      logger.warn("Consulta lenta detectada", {
         operation: operationName,
         duration: `${duration}ms`,
-        rowCount: result.rowCount
+        rowCount: result.rowCount,
       });
     }
 
     return result;
-
   } catch (error) {
     const duration = Date.now() - start;
-    
+
     // Log detallado del error
-    logger.logDatabase('error', operationName, duration, 0, {
+    logger.logDatabase("error", operationName, duration, 0, {
       error: error.message,
       code: error.code,
       detail: error.detail,
       hint: error.hint,
       position: error.position,
-      query: text.replace(/\s+/g, ' ').trim().substring(0, 200),
-      params: params.length > 0 ? JSON.stringify(params).substring(0, 200) : null
+      query: text.replace(/\s+/g, " ").trim().substring(0, 200),
+      params:
+        params.length > 0 ? JSON.stringify(params).substring(0, 200) : null,
     });
 
     // Re-lanzar el error para que sea manejado por los controladores
     throw error;
-
   } finally {
     client.release();
   }
@@ -150,34 +155,32 @@ const query = async (text, params = [], operationName = 'unknown') => {
 const transaction = async (callback) => {
   const client = await pool.connect();
   const start = Date.now();
-  
+
   try {
-    await client.query('BEGIN');
-    logger.debug('Transacción iniciada');
+    await client.query("BEGIN");
+    logger.debug("Transacción iniciada");
 
     const result = await callback(client);
-    
-    await client.query('COMMIT');
+
+    await client.query("COMMIT");
     const duration = Date.now() - start;
-    
-    logger.info('Transacción completada exitosamente', {
-      duration: `${duration}ms`
+
+    logger.info("Transacción completada exitosamente", {
+      duration: `${duration}ms`,
     });
 
     return result;
-
   } catch (error) {
-    await client.query('ROLLBACK');
+    await client.query("ROLLBACK");
     const duration = Date.now() - start;
-    
-    logger.error('Transacción revertida debido a error', {
+
+    logger.error("Transacción revertida debido a error", {
       error: error.message,
       duration: `${duration}ms`,
-      code: error.code
+      code: error.code,
     });
 
     throw error;
-
   } finally {
     client.release();
   }
@@ -194,20 +197,22 @@ const transaction = async (callback) => {
 const testConnection = async () => {
   try {
     const result = await query(
-      'SELECT NOW() as current_time, version() as version', 
-      [], 
-      'test_connection'
+      "SELECT NOW() as current_time, version() as version",
+      [],
+      "test_connection"
     );
-    
-    logger.info('Conexión a base de datos verificada', {
+
+    logger.info("Conexión a base de datos verificada", {
       timestamp: result.rows[0].current_time,
-      version: result.rows[0].version.split(' ')[0] + ' ' + result.rows[0].version.split(' ')[1]
+      version:
+        result.rows[0].version.split(" ")[0] +
+        " " +
+        result.rows[0].version.split(" ")[1],
     });
-    
+
     return true;
-    
   } catch (error) {
-    logger.error('Error al probar conexión a base de datos:', error);
+    logger.error("Error al probar conexión a base de datos:", error);
     throw error;
   }
 };
@@ -228,9 +233,8 @@ const tableExists = async (tableName) => {
       [tableName],
       `check_table_exists_${tableName}`
     );
-    
+
     return result.rows[0].exists;
-    
   } catch (error) {
     logger.error(`Error al verificar existencia de tabla ${tableName}:`, error);
     return false;
@@ -243,33 +247,32 @@ const tableExists = async (tableName) => {
  * @returns {Promise<void>}
  */
 const runMigration = async (migrationPath) => {
-  const fs = require('fs');
-  const path = require('path');
-  
+  const fs = require("fs");
+  const path = require("path");
+
   try {
     if (!fs.existsSync(migrationPath)) {
       throw new Error(`Archivo de migración no encontrado: ${migrationPath}`);
     }
-    
-    const migrationSQL = fs.readFileSync(migrationPath, 'utf8');
-    
+
+    const migrationSQL = fs.readFileSync(migrationPath, "utf8");
+
     await transaction(async (client) => {
-      logger.info('Ejecutando migración:', migrationPath);
-      
+      logger.info("Ejecutando migración:", migrationPath);
+
       // Dividir el SQL en statements individuales (simplificado)
-      const statements = migrationSQL.split(';').filter(stmt => stmt.trim());
-      
+      const statements = migrationSQL.split(";").filter((stmt) => stmt.trim());
+
       for (const statement of statements) {
         if (statement.trim()) {
           await client.query(statement.trim());
         }
       }
-      
-      logger.info('✅ Migración ejecutada exitosamente');
+
+      logger.info("✅ Migración ejecutada exitosamente");
     });
-    
   } catch (error) {
-    logger.error('❌ Error al ejecutar migración:', error);
+    logger.error("❌ Error al ejecutar migración:", error);
     throw error;
   }
 };
@@ -280,23 +283,22 @@ const runMigration = async (migrationPath) => {
  */
 const cleanupConnections = async () => {
   try {
-    logger.info('Limpiando conexiones inactivas', {
+    logger.info("Limpiando conexiones inactivas", {
       totalConnections: pool.totalCount,
       idleConnections: pool.idleCount,
-      waitingClients: pool.waitingCount
+      waitingClients: pool.waitingCount,
     });
 
     // PostgreSQL automáticamente maneja las conexiones idle
     // Solo loggeamos el estado actual
-    
+
     if (pool.waitingCount > 0) {
-      logger.warn('Clientes esperando conexiones disponibles', {
-        waitingCount: pool.waitingCount
+      logger.warn("Clientes esperando conexiones disponibles", {
+        waitingCount: pool.waitingCount,
       });
     }
-
   } catch (error) {
-    logger.error('Error durante limpieza de conexiones:', error);
+    logger.error("Error durante limpieza de conexiones:", error);
   }
 };
 
@@ -313,7 +315,7 @@ const getPoolStats = () => {
     minConnections: poolConfig.min,
     database: poolConfig.database,
     host: poolConfig.host,
-    port: poolConfig.port
+    port: poolConfig.port,
   };
 };
 
@@ -327,34 +329,32 @@ const getPoolStats = () => {
 const preparedQuery = async (name, text, params = []) => {
   const start = Date.now();
   const client = await pool.connect();
-  
+
   try {
     // Preparar la consulta si no existe
     const result = await client.query({
       name: name,
       text: text,
-      values: params
+      values: params,
     });
 
     const duration = Date.now() - start;
-    
-    logger.logDatabase('info', `prepared_${name}`, duration, result.rowCount, {
+
+    logger.logDatabase("info", `prepared_${name}`, duration, result.rowCount, {
       cached: true,
-      affectedRows: result.rowCount
+      affectedRows: result.rowCount,
     });
 
     return result;
-
   } catch (error) {
     const duration = Date.now() - start;
-    
-    logger.logDatabase('error', `prepared_${name}`, duration, 0, {
+
+    logger.logDatabase("error", `prepared_${name}`, duration, 0, {
       error: error.message,
-      code: error.code
+      code: error.code,
     });
 
     throw error;
-
   } finally {
     client.release();
   }
@@ -366,11 +366,11 @@ const preparedQuery = async (name, text, params = []) => {
  */
 const closePool = async () => {
   try {
-    logger.info('Cerrando pool de conexiones...');
+    logger.info("Cerrando pool de conexiones...");
     await pool.end();
-    logger.info('Pool de conexiones cerrado exitosamente');
+    logger.info("Pool de conexiones cerrado exitosamente");
   } catch (error) {
-    logger.error('Error al cerrar pool de conexiones:', error);
+    logger.error("Error al cerrar pool de conexiones:", error);
     throw error;
   }
 };
@@ -379,13 +379,13 @@ const closePool = async () => {
 // MANEJO DE EVENTOS DE CIERRE
 // ============================================
 
-process.on('SIGINT', async () => {
-  logger.info('Señal SIGINT recibida, cerrando pool de conexiones...');
+process.on("SIGINT", async () => {
+  logger.info("Señal SIGINT recibida, cerrando pool de conexiones...");
   await closePool();
 });
 
-process.on('SIGTERM', async () => {
-  logger.info('Señal SIGTERM recibida, cerrando pool de conexiones...');
+process.on("SIGTERM", async () => {
+  logger.info("Señal SIGTERM recibida, cerrando pool de conexiones...");
   await closePool();
 });
 
@@ -397,7 +397,7 @@ module.exports = {
   // Funciones principales
   query,
   transaction,
-  
+
   // Utilidades
   testConnection,
   tableExists,
@@ -406,7 +406,7 @@ module.exports = {
   getPoolStats,
   preparedQuery,
   closePool,
-  
+
   // Pool para acceso directo si es necesario
-  pool
+  pool,
 };
